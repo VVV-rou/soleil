@@ -27,13 +27,13 @@ button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 #stage{position:fixed;inset:0;background:radial-gradient(120% 80% at 50% 0%,#2b2219,#0f0c0a)}
 #cam,#pano{position:absolute;inset:0;width:100%;height:100%}
 #cam{object-fit:cover;display:none}
-#pano{display:none}
-#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#pano{display:none;z-index:0;isolation:isolate}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
 body.v-ar #cam{display:block}
 body.v-sv #pano{display:block}
 
 /* ---- haut ---- */
-#top{position:fixed;left:0;right:0;top:0;padding:calc(var(--st) + 10px) 14px 0;pointer-events:none;
+#top{z-index:10;position:fixed;left:0;right:0;top:0;padding:calc(var(--st) + 10px) 14px 0;pointer-events:none;
   display:flex;flex-direction:column;align-items:center;gap:6px}
 #topRow{width:100%;display:flex;justify-content:space-between;align-items:center;pointer-events:auto}
 .iconbtn{width:44px;height:44px;border-radius:50%;background:var(--glass);backdrop-filter:blur(14px);
@@ -55,7 +55,7 @@ body.m-plan #badge .dot{background:var(--plan);box-shadow:0 0 10px var(--plan);b
 body.chips-off #chips{display:none}
 
 /* ---- bas ---- */
-#sheet{position:fixed;left:8px;right:8px;bottom:calc(var(--sb) + 8px);border-radius:24px;padding:8px 12px 12px;
+#sheet{z-index:10;position:fixed;left:8px;right:8px;bottom:calc(var(--sb) + 8px);border-radius:24px;padding:8px 12px 12px;
   background:var(--glass-strong);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);
   display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto}
 #handle{align-self:center;width:44px;height:16px;display:grid;place-items:center}

@@ -120,6 +120,26 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;heigh
 #svEmpty b{color:var(--text);display:block;font-size:18px;margin-bottom:6px}
 body.v-sv.sv-empty #svEmpty{display:block}
 .gm-style .gm-style-cc,.gmnoprint a{font-size:9px}
+
+/* ---- recalage ---- */
+#calib{position:fixed;inset:0;z-index:12;display:none;pointer-events:none}
+body.calib #calib{display:block}
+body.calib #sheet,body.calib #chips{display:none}
+#reticle{position:absolute;left:50%;top:50%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  border:3px solid var(--sun);box-shadow:0 0 0 2px rgba(0,0,0,.45),0 0 24px rgba(255,210,63,.45)}
+#reticle::before,#reticle::after{content:"";position:absolute;background:var(--sun)}
+#reticle::before{left:50%;top:-22px;bottom:-22px;width:2px;margin-left:-1px;
+  -webkit-mask:linear-gradient(#000 0 18px,transparent 18px calc(100% - 18px),#000 calc(100% - 18px));mask:linear-gradient(#000 0 18px,transparent 18px calc(100% - 18px),#000 calc(100% - 18px))}
+#reticle::after{top:50%;left:-22px;right:-22px;height:2px;margin-top:-1px;
+  -webkit-mask:linear-gradient(90deg,#000 0 18px,transparent 18px calc(100% - 18px),#000 calc(100% - 18px));mask:linear-gradient(90deg,#000 0 18px,transparent 18px calc(100% - 18px),#000 calc(100% - 18px))}
+#calibBar{position:absolute;left:8px;right:8px;bottom:calc(var(--sb) + 8px);max-width:560px;margin:0 auto;pointer-events:auto;
+  background:var(--glass-strong);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);
+  border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:12px}
+#calibBar p{margin:0;font-size:15px;text-align:center}
+#calibBar p b{color:var(--sun)}
+#calibBar .row button{flex:1;padding:13px}
+#calibHint{position:absolute;left:0;right:0;top:calc(50% + 78px);text-align:center;font:600 13px var(--mono);color:var(--sun);
+  text-shadow:0 1px 6px rgba(0,0,0,.8)}
 </style>
 </head>
 <body class="v-ar m-live">
@@ -217,6 +237,14 @@ body.v-sv.sv-empty #svEmpty{display:block}
   <p style="margin:0">Touche la carte près d'une route (lignes bleues = Street View disponible).</p>
 </div></div>
 
+<div id="calib">
+  <div id="reticle"></div>
+  <div id="calibHint">Place le soleil ici</div>
+  <div id="calibBar">
+    <p>Vise le <b>vrai soleil</b> pour qu'il soit au centre du cercle, téléphone bien droit (ou l'endroit où il se cache derrière les nuages).</p>
+    <div class="row"><button class="act ghost" id="calibCancel">Annuler</button><button class="act" id="calibOk">Valider</button></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -637,7 +665,8 @@ function draw() {
   const label = (sp.alt >= 0 ? '+' : '') + Math.round(sp.alt) + '° · ' + card(sp.bearing);
   const sc = sp.alt > -0.8 ? '#' + lightRGB(sp.alt).map(v => v.toString(16).padStart(2, '0')).join('') : COL.blue;
   const m = 34;
-  if (!p.behind && p.x > m && p.x < W - m && p.y > m + 150 && p.y < H - m - 140) {
+  if (S.calib) { /* recalage : on masque le soleil calculé */ }
+  else if (!p.behind && p.x > m && p.x < W - m && p.y > m + 150 && p.y < H - m - 140) {
     sunGlyph(p.x, p.y, 24, sc);
     ctx.strokeStyle = sc; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 28, 0, 7); ctx.stroke();
     placed.push({ x: p.x - 40, y: p.y - 34, w: 80, h: 68 }); placed.push(pill(p.x, p.y + 50, label, { size: 15, bold: true, anchor: 'center', color: sc, border: sc + '88' }));
@@ -789,14 +818,26 @@ function mainAction() {
     return;
   }
   if (S.mode === 'plan') return toast('Le recalage se fait en mode « Maintenant », en visant le vrai soleil');
-  const cam = S.camBasis; if (!cam) return toast('Boussole pas encore prête');
-  const sp = SunEngine.position(new Date(), loc.lat, loc.lng);
-  if (sp.alt < 1) return toast('Le soleil est sous l\'horizon : recalage impossible');
-  if (!confirm('Vise le centre du soleil (ou l\'endroit où il est caché derrière les nuages), téléphone bien droit, puis valide.')) return;
-  const delta = norm180(sp.bearing - bearingOf(S.camBasis.fwd));
-  S.manual = norm180(S.manual + delta); store.set('manual', S.manual);
-  S.camBasis = null; toast('Recalé de ' + (delta > 0 ? '+' : '') + delta.toFixed(1) + '°'); syncSettings();
+  if (!S.camBasis) return toast('Boussole pas encore prête');
+  if (SunEngine.position(new Date(), loc.lat, loc.lng).alt < 1) return toast('Le soleil est sous l\'horizon : recalage impossible');
+  S.calib = true; document.body.classList.add('calib'); needDraw = true;
 }
+function endCalib(apply) {
+  if (apply) {
+    const loc = curLoc(), cam = S.camBasis;
+    if (loc && cam) {
+      const sp = SunEngine.position(new Date(), loc.lat, loc.lng);
+      const delta = norm180(sp.bearing - bearingOf(cam.fwd));
+      S.manual = norm180(S.manual + delta); store.set('manual', S.manual);
+      S.camBasis = null; syncSettings();
+      toast('Recalé de ' + (delta > 0 ? '+' : '') + delta.toFixed(1) + '°');
+    }
+  }
+  S.calib = false; document.body.classList.remove('calib'); needDraw = true;
+  if (video.srcObject && video.paused) video.play().catch(() => {});
+}
+$('#calibOk').onclick = () => endCalib(true);
+$('#calibCancel').onclick = () => endCalib(false);
 
 // --- modales ---
 function openModal(s) { closeModals(); $(s).classList.add('open'); if (s === '#setModal') syncSettings(); }
@@ -836,12 +877,14 @@ $('#mapMe').onclick = () => { if (S.gps) { S.map.setCenter(S.gps); S.map.setZoom
 $('#goAR').onclick = async () => { $('#start').style.display = 'none'; await askMotion(); startGPS(); await setView('ar'); store.set('started', 'ar'); };
 $('#goSV').onclick = async () => { $('#start').style.display = 'none'; startGPS(); await setView('sv'); store.set('started', 'sv'); if (!S.sv && S.key) openMap(); };
 window.addEventListener('resize', resize);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.view === 'ar' && video.srcObject) video.play().catch(() => {}); });
 window.addEventListener('orientationchange', () => setTimeout(resize, 300));
 
 // --- boucle ---
 resize(); updateLoc();
 let lastSec = 0;
 function loop(ts) {
+  if (S.view === 'ar' && video.srcObject && video.paused && !loop.kick) { loop.kick = true; video.play().catch(() => {}).finally(() => { loop.kick = false; }); }
   if (S.view === 'ar' || needDraw || ts - lastSec > 1000) { if (ts - lastSec > 1000) { lastSec = ts; if (S.mode === 'live') updateBadge(); } draw(); needDraw = false; }
   requestAnimationFrame(loop);
 }

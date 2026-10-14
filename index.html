@@ -140,6 +140,31 @@ body.calib #sheet,body.calib #chips{display:none}
 #calibBar .row button{flex:1;padding:13px}
 #calibHint{position:absolute;left:0;right:0;top:calc(50% + 78px);text-align:center;font:600 13px var(--mono);color:var(--sun);
   text-shadow:0 1px 6px rgba(0,0,0,.8)}
+
+/* ---- météo ---- */
+#chWx{pointer-events:auto;cursor:pointer;white-space:normal;flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 28px);row-gap:2px;column-gap:6px}
+#chWx .tag{font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,236,210,.14);color:var(--muted)}
+#chWx .more{color:var(--muted)}
+#wxBand{position:relative;height:10px;border-radius:5px;margin:-4px 13px 0;overflow:visible;display:none}
+#wxBand.on{display:block}
+#wxBand b{position:absolute;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%}
+#wxLegend{display:none;justify-content:space-between;font:500 10px var(--mono);color:var(--muted);margin:0 13px}
+#wxLegend.on{display:flex}
+.wxHead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.wxBig{font:600 22px/1.2 var(--mono);margin:6px 0 2px}
+.wxCard{background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:14px;padding:12px;margin-top:10px}
+.wxCard h4{margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.wxCard p{margin:4px 0;color:var(--text)}
+.wxBar{display:flex;align-items:center;gap:8px;font:500 13px var(--mono);margin:5px 0}
+.wxBar span:first-child{width:62px;color:var(--muted)}
+.wxBar .tr{flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden}
+.wxBar .tr i{display:block;height:100%;background:#cfd6e4;border-radius:4px}
+.wxBar span:last-child{width:40px;text-align:right}
+.wxStrip{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px}
+.wxStrip div{text-align:center;border-radius:10px;padding:6px 2px;background:rgba(255,255,255,.05);font:500 12px/1.5 var(--mono)}
+.wxStrip div.cur{background:rgba(201,162,255,.2);outline:1px solid rgba(201,162,255,.6)}
+.wxStrip .ic{font-size:18px}
+.note{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body class="v-ar m-live">
@@ -165,6 +190,7 @@ body.calib #sheet,body.calib #chips{display:none}
     <div class="chip" id="chEvent"></div>
     <div class="chip" id="chShadow"></div>
     <div class="chip" id="chCam"></div>
+    <div class="chip" id="chWx" role="button" aria-label="Détail météo"></div>
   </div>
 </div>
 
@@ -183,6 +209,8 @@ body.calib #sheet,body.calib #chips{display:none}
       <div id="timeBig">--:--</div>
     </div>
     <input type="range" id="tSlider" min="0" max="1435" step="5" value="720">
+    <div id="wxBand"></div>
+    <div id="wxLegend"><span>☀︎ dégagé</span><span>☁︎ couvert</span><span><span style="color:#5aa0ff">●</span> pluie</span><span><span style="color:#ff8a3d">●</span> averses/orage</span></div>
     <div id="jumps"></div>
   </div>
   <div class="row full" id="locRow">
@@ -225,6 +253,8 @@ body.calib #sheet,body.calib #chips{display:none}
   </ol>
   <p>La clé reste enregistrée uniquement sur ce téléphone.</p>
 </div></div>
+
+<div class="modal" id="wxModal"><div class="panel" id="wxPanel"></div></div>
 
 <div class="modal" id="mapModal"><div class="panel">
   <div class="phead"><h2>Choisir un lieu</h2><button class="small" data-close>Fermer</button></div>
@@ -334,7 +364,7 @@ const S = {
   fov: store.get('fov', 69), decl: store.get('decl', 2), manual: store.get('manual', 0),
   optHours: store.get('optHours', true), optHorizon: store.get('optHorizon', true), optMorning: store.get('optMorning', true),
   ori: null, compassOff: null, compassAcc: null,
-  camBasis: null, pano: null, gmapsReady: false, map: null, mapMarker: null,
+  topLim: 200, camBasis: null, pano: null, gmapsReady: false, map: null, mapMarker: null,
 };
 
 // =================== modèle de la journée ===================
@@ -666,7 +696,7 @@ function draw() {
   const sc = sp.alt > -0.8 ? '#' + lightRGB(sp.alt).map(v => v.toString(16).padStart(2, '0')).join('') : COL.blue;
   const m = 34;
   if (S.calib) { /* recalage : on masque le soleil calculé */ }
-  else if (!p.behind && p.x > m && p.x < W - m && p.y > m + 150 && p.y < H - m - 140) {
+  else if (!p.behind && p.x > m && p.x < W - m && p.y > S.topLim + 30 && p.y < H - m - 140) {
     sunGlyph(p.x, p.y, 24, sc);
     ctx.strokeStyle = sc; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 28, 0, 7); ctx.stroke();
     placed.push({ x: p.x - 40, y: p.y - 34, w: 80, h: 68 }); placed.push(pill(p.x, p.y + 50, label, { size: 15, bold: true, anchor: 'center', color: sc, border: sc + '88' }));
@@ -676,7 +706,7 @@ function draw() {
     if (p.behind) { dx = p.x; dy = -p.y; if (Math.hypot(dx, dy) < 1e-3) dx = 1; }
     else { dx = p.x - W / 2; dy = p.y - H / 2; }
     const L = Math.hypot(dx, dy); dx /= L; dy /= L;
-    const top = 190, bot = H - 190, left = 70, right = W - 70, cx = W / 2, cy = (top + bot) / 2;
+    const top = S.topLim + 40, bot = H - 190, left = 70, right = W - 70, cx = W / 2, cy = (top + bot) / 2;
     const tx = dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : 1e9;
     const ty = dy > 0 ? (bot - cy) / dy : dy < 0 ? (top - cy) / dy : 1e9;
     const t = Math.min(tx, ty), ex = cx + dx * t, ey = cy + dy * t;
@@ -718,10 +748,11 @@ function draw() {
 function updateChips(loc, cam) {
   if (!loc) {
     $('#chPhase').innerHTML = '<span class="s">' + (S.view === 'ar' ? 'En attente du GPS…' : 'Choisis un lieu Street View') + '</span>';
-    ['#chEvent', '#chShadow', '#chCam'].forEach(s => $(s).style.display = 'none'); return;
+    ['#chEvent', '#chShadow', '#chCam', '#chWx'].forEach(s => $(s).style.display = 'none'); return;
   }
   ['#chEvent', '#chShadow', '#chCam'].forEach(s => $(s).style.display = '');
   const ref = refTime(), dm = dayModel(ref, loc), ph = phaseInfo(ref, loc, dm);
+  wxEnsure(loc, ref); wxChip(loc, ref);
   $('#chPhase').innerHTML = `<i style="background:${ph.col}"></i>${ph.label.toUpperCase()}` + (ph.nextT ? ` <span class="s">· ${ph.nextName} dans</span> ${dur(ph.nextT - ref)}` : '');
   if (ph.sunEvt) {
     const isSet = ph.sunEvt.k === 'sunSet';
@@ -736,6 +767,201 @@ function updateChips(loc, cam) {
     $('#chCam').innerHTML = `<span class="k">Visée</span> ${Math.round(b)}° ${card(b)}<span class="s">${warn}</span>`;
   } else $('#chCam').innerHTML = '<span class="s">' + (S.view === 'ar' ? 'Boussole en attente…' : 'Panorama en chargement…') + '</span>';
 }
+
+
+// =================== météo (Open-Meteo) ===================
+const WX = { fc: null, fcKey: '', fcAt: 0, fcErr: 0, loading: false, clim: {} };
+const wxKey = loc => loc.lat.toFixed(2) + ',' + loc.lng.toFixed(2);
+const WX_VARS = 'temperature_2m,precipitation_probability,precipitation,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,cape,wind_gusts_10m';
+function wxEnsure(loc, ref) {
+  const k = wxKey(loc);
+  if (!WX.loading && (WX.fcKey !== k || Date.now() - WX.fcAt > 30 * 60e3) && Date.now() - WX.fcErr > 120e3) wxFetchForecast(loc, k);
+  if (WX.fc && WX.fcKey === k && !wxHour(ref)) wxClimEnsure(loc, ref);
+}
+async function wxFetchForecast(loc, k) {
+  WX.loading = true;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat.toFixed(3)}&longitude=${loc.lng.toFixed(3)}&hourly=${WX_VARS}&forecast_days=16&past_days=1&timeformat=unixtime&timezone=GMT`;
+    const r = await fetch(u); if (!r.ok) throw new Error(r.status);
+    const j = await r.json(); if (!j.hourly || !j.hourly.time) throw new Error('format');
+    WX.fc = j.hourly; WX.fcKey = k; WX.fcAt = Date.now();
+  } catch (e) { WX.fcErr = Date.now(); }
+  WX.loading = false; refreshWx();
+}
+function wxHour(t) {
+  const h = WX.fc; if (!h) return null;
+  const i = Math.round((t / 1000 - h.time[0]) / 3600);
+  if (i < 0 || i >= h.time.length || h.cloud_cover[i] == null) return null;
+  return { i, t: new Date(h.time[i] * 1000), temp: h.temperature_2m[i], pp: h.precipitation_probability[i], mm: h.precipitation[i] || 0,
+    code: h.weather_code[i] || 0, cc: h.cloud_cover[i], low: h.cloud_cover_low[i], mid: h.cloud_cover_mid[i], high: h.cloud_cover_high[i],
+    cape: h.cape[i] || 0, gust: h.wind_gusts_10m[i] };
+}
+function wxSky(cc) {
+  if (cc < 20) return { ic: '☀︎', label: 'Dégagé' };
+  if (cc < 70) return { ic: '⛅︎', label: 'Partiel' };
+  return { ic: '☁︎', label: 'Couvert' };
+}
+// Interprète la pluie : type (bruine / pluie / averses / orage) plutôt que la seule probabilité
+function wxRain(h) {
+  if (!h) return null;
+  const p = h.pp == null ? null : h.pp, code = h.code, mm = h.mm, cape = h.cape;
+  if (code >= 95) return { lvl: 4, label: 'Orage', col: '#ff5a4f', txt: 'Orage possible : risque fort pour le matériel, même si la probabilité affichée est faible.' };
+  if ((code >= 80 && code <= 82) || (cape >= 400 && ((p || 0) >= 10 || mm > 0)))
+    return { lvl: 3, label: 'Averses', col: '#ff8a3d', txt: 'Averses localisées : air instable, elles peuvent tomber à côté… ou sur toi. Une faible probabilité ne veut pas dire sans risque.' };
+  if (mm >= 1 || (code >= 61 && code <= 67)) return { lvl: 2, label: 'Pluie', col: '#5aa0ff', txt: `Pluie continue attendue (~${mm.toFixed(1)} mm/h) : protège ou décale.` };
+  if (mm > 0 || (code >= 51 && code <= 57)) return { lvl: 1, label: 'Bruine', col: '#9ec3ff', txt: 'Pluie fine / bruine : peu gênante, une protection légère suffit.' };
+  if ((p || 0) >= 40) return { lvl: 1, label: 'Incertain', col: '#9ec3ff', txt: 'Risque de pluie, sans précipitation nette prévue à cette heure.' };
+  return { lvl: 0, label: 'Sec', col: '#9be38f', txt: 'Pas de pluie attendue.' };
+}
+function wxNearby(h) { // pire risque dans les 2 h autour
+  let worst = null;
+  for (let d = -2; d <= 2; d++) { if (!d) continue; const o = wxHour(+h.t + d * 3600e3); const r = wxRain(o); if (r && (!worst || r.lvl > worst.lvl)) worst = { ...r, d }; }
+  return worst;
+}
+function wxTemp(t) {
+  if (t >= 35) return { col: '#ff5a4f', txt: 'Forte chaleur : surchauffe de la caméra probable. Ombre, ventilation, pauses.' };
+  if (t >= 30) return { col: '#ff9f43', txt: 'Chaleur : surveille la surchauffe de la caméra au soleil.' };
+  if (t <= 0) return { col: '#7fb2ff', txt: 'Froid : les batteries se vident plus vite, garde-les au chaud.' };
+  return null;
+}
+function wxTier(t) {
+  const d = (t - Date.now()) / 864e5;
+  return d > 3 ? 'indicatif' : null;
+}
+function wxGoldenNote(h, loc) {
+  const a = SunEngine.position(h.t, loc.lat, loc.lng).alt;
+  if (a < -6 || a > 10) return null;
+  if (h.low >= 60) return 'Horizon probablement bouché par des nuages bas : lumière rasante peu probable.';
+  if (h.high >= 20 && h.high <= 85 && h.low < 40) return 'Ciel coloré probable : nuages hauts éclairés par en dessous, horizon assez dégagé.';
+  if (h.cc < 15) return 'Ciel pur : belle lumière rasante, mais ciel sans relief.';
+  return null;
+}
+// ---- statistiques au-delà des prévisions (10 dernières années) ----
+function wxClimKey(loc, ref) { return wxKey(loc) + '|' + (ref.getMonth() + 1) + '-' + ref.getDate() + '|' + ref.getHours(); }
+function wxClimEnsure(loc, ref) {
+  const k = wxClimKey(loc, ref); if (WX.clim[k]) return;
+  WX.clim[k] = { status: 'loading' }; wxFetchClim(loc, ref, k);
+}
+async function wxFetchClim(loc, ref, k) {
+  const now = new Date(), limit = new Date(+now - 10 * 864e5), hours = [], fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const reqs = [];
+  for (let y = now.getFullYear(); reqs.length < 10 && y > now.getFullYear() - 14; y--) {
+    const c = new Date(y, ref.getMonth(), ref.getDate()), a = new Date(+c - 3 * 864e5), b = new Date(+c + 3 * 864e5);
+    if (b > limit) continue;
+    reqs.push(fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${loc.lat.toFixed(3)}&longitude=${loc.lng.toFixed(3)}&start_date=${fmt(a)}&end_date=${fmt(b)}&hourly=cloud_cover,precipitation,temperature_2m&timeformat=unixtime&timezone=GMT`).then(r => r.ok ? r.json() : null).catch(() => null));
+  }
+  const res = (await Promise.all(reqs)).filter(j => j && j.hourly);
+  if (!res.length) { WX.clim[k] = { status: 'err' }; refreshWx(); return; }
+  const H = ref.getHours(); let n = 0, clear = 0, part = 0, over = 0, tSum = 0; const days = {};
+  res.forEach(j => j.hourly.time.forEach((ts, i) => {
+    const d = new Date(ts * 1000), dh = d.getHours(), cc = j.hourly.cloud_cover[i], mm = j.hourly.precipitation[i], tt = j.hourly.temperature_2m[i];
+    const dk = d.toDateString(); days[dk] = days[dk] || false;
+    if (Math.abs(dh - H) <= 1 && mm >= 0.2) days[dk] = true;
+    if (dh !== H || cc == null) return;
+    n++; tSum += tt; if (cc < 20) clear++; else if (cc < 70) part++; else over++;
+  }));
+  const dk = Object.values(days);
+  WX.clim[k] = { status: 'ok', years: res.length, clear: clear / n, part: part / n, over: over / n, rain: dk.filter(Boolean).length / dk.length, temp: tSum / n };
+  refreshWx();
+}
+const pct = x => Math.round(x * 100) + ' %';
+// ---- affichage ----
+function wxChip(loc, ref) {
+  const el = $('#chWx');
+  if (!loc) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const h = wxHour(ref);
+  if (h) {
+    const sky = wxSky(h.cc), r = wxRain(h), near = wxNearby(h), tw = wxTemp(h.temp), tier = wxTier(ref);
+    const nearTxt = near && near.lvl >= 3 && near.lvl > r.lvl ? ` <span style="color:${near.col}">· ${near.label.toLowerCase()} proches</span>` : '';
+    el.innerHTML = `${sky.ic} ${sky.label} <span class="s">${Math.round(h.cc)}%</span> · <span style="color:${r.col}">${r.label}${h.pp != null && r.lvl > 0 ? ' ' + h.pp + '%' : ''}</span>${nearTxt} · <span style="color:${tw ? tw.col : 'inherit'}">${Math.round(h.temp)}°</span>${tier ? ' <span class="tag">' + tier + '</span>' : ''} <span class="more">›</span>`;
+    return;
+  }
+  if (WX.loading && !WX.fc) { el.innerHTML = '<span class="s">Météo…</span>'; return; }
+  if (!WX.fc) { el.innerHTML = '<span class="s">Météo indisponible</span>'; return; }
+  const c = WX.clim[wxClimKey(loc, ref)];
+  if (!c || c.status === 'loading') { el.innerHTML = '<span class="s">Statistiques météo…</span>'; return; }
+  if (c.status === 'err') { el.innerHTML = '<span class="s">Pas de données météo pour cette date</span>'; return; }
+  const dom = c.clear >= c.part && c.clear >= c.over ? wxSky(0) : c.over >= c.part ? wxSky(90) : wxSky(40);
+  el.innerHTML = `${dom.ic} Souvent ${dom.label.toLowerCase()} · <span style="color:#9ec3ff">pluie ${pct(c.rain)}</span> · ~${Math.round(c.temp)}° <span class="tag">moy. 10 ans</span> <span class="more">›</span>`;
+}
+function wxBand() {
+  const band = $('#wxBand'), leg = $('#wxLegend');
+  const d = S.planDate;
+  if (!d || !WX.fc) { band.classList.remove('on'); leg.classList.remove('on'); return; }
+  const stops = [], dots = [];
+  let any = false;
+  for (let hr = 0; hr < 24; hr++) {
+    const h = wxHour(new Date(d.getFullYear(), d.getMonth(), d.getDate(), hr, 30));
+    const x = (hr + .5) / 24 * 100;
+    if (!h) { stops.push(`rgba(255,255,255,.05) ${x.toFixed(1)}%`); continue; }
+    any = true;
+    const g = Math.round(235 - h.cc * 1.5);
+    stops.push(`rgb(${g},${g},${g + 8}) ${x.toFixed(1)}%`);
+    const r = wxRain(h);
+    if (r.lvl >= 2) dots.push(`<b style="left:${x}%;background:${r.lvl >= 3 ? '#ff8a3d' : '#5aa0ff'}"></b>`);
+  }
+  band.style.background = `linear-gradient(90deg,${stops.join(',')})`;
+  band.innerHTML = dots.join('');
+  band.classList.toggle('on', any); leg.classList.toggle('on', any);
+}
+function wxPanel() {
+  const loc = curLoc(), ref = refTime(), box = $('#wxPanel');
+  if (!loc) { box.innerHTML = ''; return; }
+  const when = ref.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · ' + hm(ref);
+  let body = '';
+  const h = wxHour(ref);
+  if (h) {
+    const sky = wxSky(h.cc), r = wxRain(h), near = wxNearby(h), tw = wxTemp(h.temp), gold = wxGoldenNote(h, loc), tier = wxTier(ref);
+    const bar = (n, v) => `<div class="wxBar"><span>${n}</span><div class="tr"><i style="width:${Math.round(v)}%"></i></div><span>${Math.round(v)}%</span></div>`;
+    let strip = '';
+    for (let d = -3; d <= 3; d++) {
+      const o = wxHour(+h.t + d * 3600e3); if (!o) { strip += '<div>–</div>'; continue; }
+      const rr = wxRain(o);
+      strip += `<div class="${d ? '' : 'cur'}">${pad(o.t.getHours())}h<br><span class="ic">${wxSky(o.cc).ic}</span><br><span style="color:${rr.col}">${rr.lvl ? (o.pp != null ? o.pp + '%' : rr.label) : 'sec'}</span><br>${Math.round(o.temp)}°</div>`;
+    }
+    body = `
+      <div class="wxBig">${sky.ic} ${sky.label} · <span style="color:${r.col}">${r.label}</span> · <span style="color:${tw ? tw.col : 'inherit'}">${Math.round(h.temp)}°</span></div>
+      ${tier ? '<p class="note">Prévision à plus de 3 jours : à reconfirmer à l\'approche du tournage.</p>' : ''}
+      <div class="wxCard"><h4>Nuages · ${Math.round(h.cc)} % du ciel</h4>
+        ${bar('Hauts', h.high)}${bar('Moyens', h.mid)}${bar('Bas', h.low)}
+        ${gold ? `<p>✨ ${gold}</p>` : ''}</div>
+      <div class="wxCard"><h4>Pluie</h4>
+        <p style="color:${r.col}">${r.txt}</p>
+        <p class="note">Probabilité ${h.pp != null ? h.pp + ' %' : 'non disponible'} · quantité ${h.mm.toFixed(1)} mm/h${h.cape >= 400 ? ' · air instable' : ''}</p>
+        ${near && near.lvl > r.lvl && near.lvl >= 2 ? `<p style="color:${near.col}">⚠︎ ${near.label} ${near.d < 0 ? 'avant' : 'après'} ce créneau (${Math.abs(near.d)} h).</p>` : ''}</div>
+      <div class="wxCard"><h4>Température & vent</h4>
+        <p>${Math.round(h.temp)} °C · rafales ${Math.round(h.gust || 0)} km/h</p>
+        ${tw ? `<p style="color:${tw.col}">${tw.txt}</p>` : ''}
+        ${h.gust >= 50 ? '<p style="color:#ff9f43">Rafales fortes : attention au trépied, aux pieds de lumière et au drone.</p>' : ''}</div>
+      <div class="wxCard"><h4>Autour de ce créneau</h4><div class="wxStrip">${strip}</div></div>`;
+  } else {
+    const c = WX.clim[wxClimKey(loc, ref)];
+    if (c && c.status === 'ok') {
+      body = `
+        <p class="note">Trop loin pour une prévision (au-delà de 16 jours). Voici ce qu'il s'est passé ces ${c.years} dernières années autour de cette date, vers ${ref.getHours()}h :</p>
+        <div class="wxCard"><h4>Ciel</h4>
+          <div class="wxBar"><span>Dégagé</span><div class="tr"><i style="width:${c.clear * 100}%"></i></div><span>${pct(c.clear)}</span></div>
+          <div class="wxBar"><span>Partiel</span><div class="tr"><i style="width:${c.part * 100}%"></i></div><span>${pct(c.part)}</span></div>
+          <div class="wxBar"><span>Couvert</span><div class="tr"><i style="width:${c.over * 100}%"></i></div><span>${pct(c.over)}</span></div></div>
+        <div class="wxCard"><h4>Pluie & température</h4>
+          <p>Pluie autour de cette heure ${pct(c.rain)} des jours · ~${Math.round(c.temp)} °C en moyenne</p>
+          ${wxTemp(c.temp) ? `<p style="color:${wxTemp(c.temp).col}">${wxTemp(c.temp).txt}</p>` : ''}</div>
+        <p class="note">Ce n'est pas une prévision : c'est une tendance, utile pour choisir une date ou prévoir un jour de repli.</p>`;
+    } else body = `<p class="note">${c && c.status === 'err' ? 'Pas de données disponibles pour cette date.' : (WX.fc ? 'Chargement des statistiques…' : 'Météo indisponible (réseau ?).')}</p>`;
+  }
+  box.innerHTML = `<div class="phead"><h2>Météo</h2><button class="small" data-close>Fermer</button></div>
+    <div class="wxHead"><span class="note" style="text-transform:capitalize">${when}</span><span class="note">${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}</span></div>
+    ${body}
+    <p class="note" style="margin-top:12px">Données Open-Meteo.com (CC BY 4.0).</p>`;
+}
+function refreshWx() {
+  const loc = curLoc();
+  wxChip(loc, refTime());
+  if (S.mode === 'plan') wxBand();
+  if ($('#wxModal').classList.contains('open')) wxPanel();
+}
+$('#chWx').addEventListener('click', () => { wxPanel(); openModal('#wxModal'); });
 
 // =================== interface ===================
 function setMode(m) {
@@ -776,7 +1002,7 @@ function syncPlanUI() {
   $('#dInput').value = toDateInput(d);
   $('#tSlider').value = d.getHours() * 60 + d.getMinutes();
   $('#timeBig').textContent = hm(d);
-  syncTrack(); syncJumps(); updateBadge();
+  syncTrack(); syncJumps(); updateBadge(); wxBand();
 }
 function syncTrack() { // dégradé de lumière sur le curseur
   const loc = curLoc() || S.gps || S.sv; if (!loc) return;
@@ -868,7 +1094,7 @@ $('#btnSettings').onclick = () => openModal('#setModal');
 $('#btnPlace').onclick = openMap;
 $('#btnAction').onclick = mainAction;
 $('#tSlider').addEventListener('input', setPlanFromInputs);
-$('#dInput').addEventListener('change', () => { setPlanFromInputs(); syncTrack(); syncJumps(); });
+$('#dInput').addEventListener('change', () => { setPlanFromInputs(); syncTrack(); syncJumps(); wxBand(); });
 $('#dPrev').onclick = () => shiftDay(-1); $('#dNext').onclick = () => shiftDay(1);
 $('#dToday').onclick = () => { const n = new Date(); S.planDate = new Date(n.getFullYear(), n.getMonth(), n.getDate(), S.planDate.getHours(), S.planDate.getMinutes()); syncPlanUI(); needDraw = true; };
 $('#searchGo').onclick = searchPlace;
@@ -884,6 +1110,7 @@ window.addEventListener('orientationchange', () => setTimeout(resize, 300));
 resize(); updateLoc();
 let lastSec = 0;
 function loop(ts) {
+  if (ts - (loop.lim || 0) > 500) { loop.lim = ts; const r = $('#chips').getBoundingClientRect(); S.topLim = document.body.classList.contains('chips-off') || !r.height ? 70 : r.bottom; }
   if (S.view === 'ar' && video.srcObject && video.paused && !loop.kick) { loop.kick = true; video.play().catch(() => {}).finally(() => { loop.kick = false; }); }
   if (S.view === 'ar' || needDraw || ts - lastSec > 1000) { if (ts - lastSec > 1000) { lastSec = ts; if (S.mode === 'live') updateBadge(); } draw(); needDraw = false; }
   requestAnimationFrame(loop);

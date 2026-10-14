@@ -1,0 +1,1 @@
+{"name": "Soleil", "short_name": "Soleil", "start_url": "./", "display": "standalone", "background_color": "#14110e", "theme_color": "#14110e", "icons": [{"src": "icon.png", "sizes": "512x512", "type": "image/png"}]}

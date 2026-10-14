@@ -1,0 +1,860 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Soleil">
+<meta name="theme-color" content="#14110e">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Soleil</title>
+<style>
+:root{
+  --bg:#14110e; --glass:rgba(38,32,26,.62); --glass-strong:rgba(30,25,20,.86);
+  --line:rgba(255,236,210,.14); --text:#fbf3e6; --muted:rgba(251,243,230,.6);
+  --sun:#ffd23f; --gold:#ff9f43; --set:#ff5a4f; --blue:#6b8cff; --plan:#c9a2ff; --live:#4ade80;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+  font:15px/1.35 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overflow:hidden;
+  -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
+#stage{position:fixed;inset:0;background:radial-gradient(120% 80% at 50% 0%,#2b2219,#0f0c0a)}
+#cam,#pano{position:absolute;inset:0;width:100%;height:100%}
+#cam{object-fit:cover;display:none}
+#pano{display:none}
+#overlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+body.v-ar #cam{display:block}
+body.v-sv #pano{display:block}
+
+/* ---- haut ---- */
+#top{position:fixed;left:0;right:0;top:0;padding:calc(var(--st) + 10px) 14px 0;pointer-events:none;
+  display:flex;flex-direction:column;align-items:center;gap:6px}
+#topRow{width:100%;display:flex;justify-content:space-between;align-items:center;pointer-events:auto}
+.iconbtn{width:44px;height:44px;border-radius:50%;background:var(--glass);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);border:1px solid var(--line);display:grid;place-items:center}
+.iconbtn svg{width:22px;height:22px}
+#badge{padding:7px 13px;border-radius:999px;background:var(--glass);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);border:1px solid var(--line);font:600 12px/1 var(--mono);letter-spacing:.08em;
+  display:flex;gap:7px;align-items:center;text-transform:uppercase}
+#badge .dot{width:8px;height:8px;border-radius:50%;background:var(--live);box-shadow:0 0 10px var(--live)}
+body.m-plan #badge{border-color:rgba(201,162,255,.5);color:var(--plan)}
+body.m-plan #badge .dot{background:var(--plan);box-shadow:0 0 10px var(--plan);border-radius:2px;transform:rotate(45deg)}
+.chip{padding:6px 12px;border-radius:999px;background:var(--glass);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);border:1px solid var(--line);font:500 14px/1.1 var(--mono);
+  display:flex;gap:8px;align-items:center;white-space:nowrap}
+.chip .k{color:var(--muted);font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.chip .s{color:var(--muted)}
+.chip i{font-style:normal;width:9px;height:9px;border-radius:50%;flex:none}
+#chips{display:flex;flex-direction:column;align-items:center;gap:6px;transition:opacity .2s}
+body.chips-off #chips{display:none}
+
+/* ---- bas ---- */
+#sheet{position:fixed;left:8px;right:8px;bottom:calc(var(--sb) + 8px);border-radius:24px;padding:8px 12px 12px;
+  background:var(--glass-strong);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border:1px solid var(--line);
+  display:flex;flex-direction:column;gap:10px;max-width:560px;margin:0 auto}
+#handle{align-self:center;width:44px;height:16px;display:grid;place-items:center}
+#handle::before{content:"";width:40px;height:5px;border-radius:3px;background:rgba(255,255,255,.28)}
+body.sheet-min #sheet .full{display:none}
+.row{display:flex;gap:8px;align-items:center}
+.seg{flex:1;display:flex;background:rgba(0,0,0,.35);border-radius:12px;padding:3px;border:1px solid var(--line)}
+.seg button{flex:1;padding:8px 6px;border-radius:9px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button.on{background:rgba(255,236,210,.16);color:var(--text)}
+#segMode button.on[data-v=plan]{background:rgba(201,162,255,.22);color:var(--plan)}
+#plan{display:none;flex-direction:column;gap:8px}
+body.m-plan #plan{display:flex}
+.datebox{display:flex;align-items:center;gap:6px}
+.datebox input[type=date]{flex:1;min-width:0;background:rgba(0,0,0,.35);border:1px solid var(--line);color:var(--text);
+  border-radius:10px;padding:8px 10px;font:500 15px var(--mono);-webkit-appearance:none;appearance:none;text-align:center}
+.small{padding:8px 11px;border-radius:10px;background:rgba(255,236,210,.1);border:1px solid var(--line);font-weight:600;font-size:14px}
+#timeBig{font:600 24px/1 var(--mono);color:var(--plan);min-width:78px;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px;background:var(--trackbg,#444)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;border-radius:50%;margin-top:-9px;
+  background:#fff;border:3px solid var(--plan);box-shadow:0 2px 8px rgba(0,0,0,.5)}
+#jumps{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+#jumps::-webkit-scrollbar{display:none}
+#jumps button{flex:none;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(0,0,0,.3);
+  font:500 12px/1.2 var(--mono);display:flex;gap:6px;align-items:center}
+#jumps i{width:8px;height:8px;border-radius:50%}
+#locRow{justify-content:space-between}
+#locTxt{font:500 12px/1.3 var(--mono);color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.act{padding:9px 13px;border-radius:12px;background:var(--sun);color:#1a1408;font-weight:700;font-size:14px;flex:none}
+.act.ghost{background:rgba(255,236,210,.12);color:var(--text);border:1px solid var(--line)}
+
+/* ---- panneaux ---- */
+.modal{position:fixed;inset:0;background:rgba(10,8,6,.6);display:none;align-items:flex-end;justify-content:center;z-index:20}
+.modal.open{display:flex}
+.panel{width:100%;max-width:560px;max-height:88vh;overflow:auto;background:#1d1813;border:1px solid var(--line);
+  border-radius:24px 24px 0 0;padding:18px 16px calc(var(--sb) + 18px)}
+.panel h2{margin:0 0 4px;font-size:20px}
+.panel h3{margin:18px 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.panel p{margin:6px 0;color:var(--muted);font-size:14px}
+.panel input[type=text],.panel input[type=password],.panel input[type=number]{width:100%;background:rgba(0,0,0,.35);
+  border:1px solid var(--line);color:var(--text);border-radius:10px;padding:10px 12px;font:500 15px var(--mono);-webkit-user-select:text;user-select:text}
+.panel ol{padding-left:20px;color:var(--muted);font-size:14px;margin:6px 0}
+.panel li{margin:3px 0}
+.panel a{color:var(--sun)}
+.toggle{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+.toggle input{width:22px;height:22px;accent-color:var(--sun)}
+.phead{display:flex;justify-content:space-between;align-items:center}
+#mapModal .panel{height:86vh;display:flex;flex-direction:column;gap:10px;padding-bottom:calc(var(--sb) + 12px)}
+#map{flex:1;border-radius:14px;overflow:hidden;background:#222}
+#start{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;justify-content:flex-end;
+  padding:24px 22px calc(var(--sb) + 28px);background:radial-gradient(90% 60% at 50% 22%,rgba(255,170,60,.35),transparent 70%),linear-gradient(#1b140e,#0d0a08)}
+#start h1{font-size:44px;margin:0;letter-spacing:-.02em}
+#start p{color:var(--muted);margin:8px 0 22px;max-width:30em}
+#start .big{width:100%;padding:16px;border-radius:16px;font-weight:700;font-size:17px;margin-top:10px}
+#start .sunart{position:absolute;top:18%;left:50%;width:150px;height:150px;margin-left:-75px;border-radius:50%;
+  background:radial-gradient(circle,#ffe58a 0 38%,#ffb347 39% 55%,rgba(255,140,40,.0) 72%);filter:blur(.3px)}
+#toast{position:fixed;left:50%;top:calc(var(--st) + 64px);transform:translateX(-50%);background:var(--glass-strong);
+  border:1px solid var(--line);padding:10px 14px;border-radius:14px;font-size:14px;max-width:90vw;z-index:40;
+  opacity:0;transition:opacity .25s;pointer-events:none;text-align:center}
+#toast.show{opacity:1}
+#svEmpty{position:fixed;left:20px;right:20px;top:42%;transform:translateY(-50%);text-align:center;display:none;color:var(--muted)}
+#svEmpty b{color:var(--text);display:block;font-size:18px;margin-bottom:6px}
+body.v-sv.sv-empty #svEmpty{display:block}
+.gm-style .gm-style-cc,.gmnoprint a{font-size:9px}
+</style>
+</head>
+<body class="v-ar m-live">
+<div id="stage">
+  <video id="cam" playsinline muted autoplay></video>
+  <div id="pano"></div>
+  <canvas id="overlay"></canvas>
+</div>
+<div id="svEmpty"><b>Aucun lieu Street View</b>Choisis un lieu avec le bouton « Lieu » en bas.</div>
+
+<div id="top">
+  <div id="topRow">
+    <button class="iconbtn" id="btnChips" aria-label="Infos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>
+    </button>
+    <div id="badge"><span class="dot"></span><span id="badgeTxt">En direct</span></div>
+    <button class="iconbtn" id="btnSettings" aria-label="Réglages">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+    </button>
+  </div>
+  <div id="chips">
+    <div class="chip" id="chPhase"></div>
+    <div class="chip" id="chEvent"></div>
+    <div class="chip" id="chShadow"></div>
+    <div class="chip" id="chCam"></div>
+  </div>
+</div>
+
+<div id="sheet">
+  <button id="handle" aria-label="Réduire"></button>
+  <div class="row">
+    <div class="seg" id="segMode"><button data-v="live" class="on">Maintenant</button><button data-v="plan">Planifier</button></div>
+    <div class="seg" id="segView"><button data-v="ar" class="on">Caméra</button><button data-v="sv">Street View</button></div>
+  </div>
+  <div id="plan" class="full">
+    <div class="datebox">
+      <button class="small" id="dPrev">‹</button>
+      <input type="date" id="dInput">
+      <button class="small" id="dNext">›</button>
+      <button class="small" id="dToday">Auj.</button>
+      <div id="timeBig">--:--</div>
+    </div>
+    <input type="range" id="tSlider" min="0" max="1435" step="5" value="720">
+    <div id="jumps"></div>
+  </div>
+  <div class="row full" id="locRow">
+    <div id="locTxt">📍 Position…</div>
+    <div class="row">
+      <button class="act ghost" id="btnPlace">Lieu</button>
+      <button class="act" id="btnAction">Recaler</button>
+    </div>
+  </div>
+</div>
+
+<div id="start">
+  <div class="sunart"></div>
+  <h1>Soleil</h1>
+  <p>Trajectoire du soleil en réalité augmentée et sur Street View. Choisis comment commencer — tu pourras basculer à tout moment.</p>
+  <button class="big act" id="goAR">Caméra (sur place)</button>
+  <button class="big act ghost" id="goSV">Street View (à distance)</button>
+</div>
+
+<div class="modal" id="setModal"><div class="panel">
+  <div class="phead"><h2>Réglages</h2><button class="small" data-close>Fermer</button></div>
+  <h3>Affichage</h3>
+  <label class="toggle"><span>Repères horaires (chaque heure)</span><input type="checkbox" id="optHours"></label>
+  <label class="toggle"><span>Horizon et points cardinaux</span><input type="checkbox" id="optHorizon"></label>
+  <label class="toggle"><span>Heures du matin (aube, lever)</span><input type="checkbox" id="optMorning"></label>
+  <h3>Caméra (réalité augmentée)</h3>
+  <p>Champ de vision horizontal sur le grand côté de l'image : <b id="fovVal"></b>. Objectif 1× de l'iPhone ≈ 69°, 0,5× ≈ 106°. Si la trajectoire « glisse » quand tu tournes, ajuste ce réglage.</p>
+  <input type="range" id="optFov" min="40" max="115" step="1">
+  <p>Recalage boussole actuel : <b id="offVal"></b> <button class="small" id="offReset">Remettre à 0</button></p>
+  <p>Déclinaison magnétique (France ≈ +2°) :</p>
+  <input type="number" id="optDecl" step="0.1">
+  <h3>Street View — clé Google</h3>
+  <input type="password" id="optKey" placeholder="Colle ta clé API ici (AIza…)" autocomplete="off">
+  <p style="margin-top:8px"><button class="small" id="keySave">Enregistrer la clé</button></p>
+  <ol>
+    <li>Va sur <a href="https://console.cloud.google.com/google/maps-apis" target="_blank" rel="noopener">console.cloud.google.com</a>, crée un projet et ajoute un compte de facturation.</li>
+    <li>Active <b>Maps JavaScript API</b> (et <b>Geocoding API</b> pour la recherche d'adresse).</li>
+    <li>Identifiants → Créer une clé API → restreins-la aux « Sites web » avec l'adresse de cette app.</li>
+    <li>Mets une alerte de budget à 1 € : l'usage perso reste dans le gratuit.</li>
+  </ol>
+  <p>La clé reste enregistrée uniquement sur ce téléphone.</p>
+</div></div>
+
+<div class="modal" id="mapModal"><div class="panel">
+  <div class="phead"><h2>Choisir un lieu</h2><button class="small" data-close>Fermer</button></div>
+  <div class="row">
+    <input type="text" id="search" placeholder="Adresse, lieu… ou 43.93, 2.15" style="flex:1">
+    <button class="act" id="searchGo">OK</button>
+  </div>
+  <div class="row"><button class="act ghost" id="mapMe" style="flex:1">Autour de moi</button></div>
+  <div id="map"></div>
+  <p style="margin:0">Touche la carte près d'une route (lignes bleues = Street View disponible).</p>
+</div></div>
+
+<div id="toast"></div>
+
+<script>
+// ==== ENGINE-START (position du soleil, formules astronomiques type SunCalc) ====
+const SunEngine = (() => {
+  const PI = Math.PI, rad = PI / 180, dayMs = 864e5, J1970 = 2440588, J2000 = 2451545;
+  const e = rad * 23.4397;
+  const toJulian = d => d.valueOf() / dayMs - 0.5 + J1970;
+  const fromJulian = j => new Date((j + 0.5 - J1970) * dayMs);
+  const toDays = d => toJulian(d) - J2000;
+  const rightAscension = (l, b) => Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l));
+  const declination = (l, b) => Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
+  const azimuthF = (H, phi, dec) => Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(phi) - Math.tan(dec) * Math.cos(phi));
+  const altitudeF = (H, phi, dec) => Math.asin(Math.sin(phi) * Math.sin(dec) + Math.cos(phi) * Math.cos(dec) * Math.cos(H));
+  const siderealTime = (d, lw) => rad * (280.16 + 360.9856235 * d) - lw;
+  const solarMeanAnomaly = d => rad * (357.5291 + 0.98560028 * d);
+  const eclipticLongitude = M => {
+    const C = rad * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+    return M + C + rad * 102.9372 + PI;
+  };
+  function position(date, lat, lng) {
+    const lw = rad * -lng, phi = rad * lat, d = toDays(date);
+    const M = solarMeanAnomaly(d), L = eclipticLongitude(M);
+    const dec = declination(L, 0), ra = rightAscension(L, 0);
+    const H = siderealTime(d, lw) - ra;
+    let alt = altitudeF(H, phi, dec) / rad;
+    // réfraction atmosphérique (sensible près de l'horizon)
+    if (alt > -1.5) { const h = Math.max(alt, -1); alt += 1.02 / Math.tan(rad * (h + 10.3 / (h + 5.11))) / 60; }
+    const bearing = ((azimuthF(H, phi, dec) / rad) + 180 + 360) % 360; // 0 = Nord, sens horaire
+    return { bearing, alt };
+  }
+  const J0 = 0.0009;
+  const julianCycle = (d, lw) => Math.round(d - J0 - lw / (2 * PI));
+  const approxTransit = (Ht, lw, n) => J0 + (Ht + lw) / (2 * PI) + n;
+  const solarTransitJ = (ds, M, L) => J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+  const hourAngle = (h, phi, d) => Math.acos((Math.sin(h) - Math.sin(phi) * Math.sin(d)) / (Math.cos(phi) * Math.cos(d)));
+  // Angles : -6/-4 heure bleue, -0.833 lever/coucher, +6 fin/début golden hour
+  const ANGLES = { blue: -6, gold: -4, sun: -0.833, day: 6 };
+  function times(date, lat, lng) {
+    const noonLocal = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+    const lw = rad * -lng, phi = rad * lat, d = toDays(noonLocal);
+    const n = julianCycle(d, lw), ds = approxTransit(0, lw, n);
+    const M = solarMeanAnomaly(ds), L = eclipticLongitude(M), dec = declination(L, 0);
+    const Jnoon = solarTransitJ(ds, M, L);
+    const r = { noon: fromJulian(Jnoon) };
+    for (const [k, a] of Object.entries(ANGLES)) {
+      const w = hourAngle(a * rad, phi, dec);
+      if (isNaN(w)) { r[k + 'Rise'] = null; r[k + 'Set'] = null; continue; }
+      const Jset = solarTransitJ(approxTransit(w, lw, n), M, L);
+      r[k + 'Rise'] = fromJulian(Jnoon - (Jset - Jnoon));
+      r[k + 'Set'] = fromJulian(Jset);
+    }
+    return r;
+  }
+  return { position, times };
+})();
+
+
+// =================== utilitaires ===================
+const $ = s => document.querySelector(s);
+const rad = Math.PI / 180;
+const CARD = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];
+const card = b => CARD[Math.round(((b % 360) + 360) % 360 / 22.5) % 16];
+const pad = n => String(n).padStart(2, '0');
+const hm = d => d ? pad(d.getHours()) + ':' + pad(d.getMinutes()) : '--:--';
+const dur = ms => { const m = Math.max(0, Math.round(ms / 60000)); return m < 60 ? m + ' min' : Math.floor(m / 60) + 'h ' + pad(m % 60); };
+const norm180 = a => ((a + 540) % 360) - 180;
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const nrm = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const dirVec = (b, h) => [Math.sin(b * rad) * Math.cos(h * rad), Math.cos(b * rad) * Math.cos(h * rad), Math.sin(h * rad)];
+const bearingOf = v => (Math.atan2(v[0], v[1]) / rad + 360) % 360;
+let toastT;
+function toast(msg, ms = 2600) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), ms); }
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('soleil.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('soleil.' + k, JSON.stringify(v)); } catch (e) {} }
+};
+
+// =================== état ===================
+const S = {
+  mode: 'live', view: 'ar',
+  planDate: null,
+  gps: store.get('gps', null), gpsLive: false,
+  sv: store.get('svLoc', null),
+  key: store.get('key', ''),
+  fov: store.get('fov', 69), decl: store.get('decl', 2), manual: store.get('manual', 0),
+  optHours: store.get('optHours', true), optHorizon: store.get('optHorizon', true), optMorning: store.get('optMorning', true),
+  ori: null, compassOff: null, compassAcc: null,
+  camBasis: null, pano: null, gmapsReady: false, map: null, mapMarker: null,
+};
+
+// =================== modèle de la journée ===================
+const COL = { day: '#ffd23f', gold: '#ff9f43', set: '#ff5a4f', blue: '#6b8cff', night: '#7a7a8c', noon: '#fff3c4' };
+const STOPS = [[-6, [80, 115, 235]], [-4, [120, 125, 240]], [-2.2, [205, 105, 165]], [-0.8, [255, 88, 78]], [2, [255, 118, 58]], [6, [255, 165, 60]], [11, [255, 210, 66]], [90, [255, 226, 96]]];
+function lightRGB(alt) {
+  if (alt <= STOPS[0][0]) return STOPS[0][1];
+  for (let i = 1; i < STOPS.length; i++) if (alt <= STOPS[i][0]) {
+    const [a0, c0] = STOPS[i - 1], [a1, c1] = STOPS[i], k = (alt - a0) / (a1 - a0);
+    return c0.map((v, j) => Math.round(v + (c1[j] - v) * k));
+  }
+  return STOPS[STOPS.length - 1][1];
+}
+const EVT = {
+  blueRise: { name: 'Aube bleue', short: 'Bleue', col: COL.blue, morning: true },
+  goldRise: { name: 'Golden matin', short: 'Golden', col: COL.gold, morning: true, hidden: true },
+  sunRise:  { name: 'Lever', short: 'Lever', col: COL.set, morning: true },
+  dayRise:  { name: 'Fin golden', short: 'Fin golden', col: COL.gold, morning: true },
+  noon:     { name: 'Zénith', short: 'Zénith', col: COL.noon },
+  daySet:   { name: 'Golden hour', short: 'Golden', col: COL.gold },
+  sunSet:   { name: 'Coucher', short: 'Coucher', col: COL.set },
+  goldSet:  { name: 'Heure bleue', short: 'Bleue', col: COL.blue },
+  blueSet:  { name: 'Nuit', short: 'Nuit', col: COL.night },
+};
+let dayCache = { key: '' };
+function dayModel(ref, loc) {
+  const key = ref.toDateString() + loc.lat.toFixed(3) + loc.lng.toFixed(3);
+  if (dayCache.key === key) return dayCache;
+  const base = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
+  const days = [-1, 0, 1].map(o => SunEngine.times(new Date(base.getFullYear(), base.getMonth(), base.getDate() + o), loc.lat, loc.lng));
+  const t = days[1];
+  const events = [];
+  days.forEach((d, i) => { for (const k of Object.keys(EVT)) if (d[k]) events.push({ k, t: d[k], day: i - 1 }); });
+  events.sort((a, b) => a.t - b.t);
+  // échantillons de la trajectoire
+  const start = t.blueRise ? new Date(t.blueRise - 25 * 60000) : base;
+  const end = t.blueSet ? new Date(+t.blueSet + 25 * 60000) : new Date(+base + 864e5);
+  const samples = [];
+  for (let ms = +start; ms <= +end; ms += 3 * 60000) { const d = new Date(ms); const p = SunEngine.position(d, loc.lat, loc.lng); samples.push({ t: d, ...p }); }
+  dayCache = { key, t, events, samples };
+  return dayCache;
+}
+function phaseInfo(ref, loc, dm) {
+  const p = SunEngine.position(ref, loc.lat, loc.lng);
+  const morning = ref < dm.t.noon;
+  let ph, next;
+  if (p.alt >= 6) { ph = 'day'; next = 'daySet'; }
+  else if (p.alt >= -4) { ph = 'gold'; next = morning ? 'dayRise' : 'goldSet'; }
+  else if (p.alt >= -6) { ph = 'blue'; next = morning ? 'goldRise' : 'blueSet'; }
+  else { ph = 'night'; next = 'blueRise'; }
+  const PH = { day: ['Jour', COL.day], gold: ['Golden hour', COL.gold], blue: ['Heure bleue', COL.blue], night: ['Nuit', COL.night] };
+  const NX = { daySet: 'golden', dayRise: 'plein jour', goldSet: 'heure bleue', goldRise: 'golden', blueSet: 'nuit', blueRise: 'aube bleue' };
+  const ne = dm.events.find(e => e.k === next && e.t > ref);
+  const se = dm.events.find(e => (e.k === 'sunSet' || e.k === 'sunRise') && e.t > ref);
+  return { pos: p, label: PH[ph][0], col: PH[ph][1], nextName: NX[next], nextT: ne && ne.t, sunEvt: se };
+}
+
+// =================== référence temps / lieu ===================
+const refTime = () => S.mode === 'live' ? new Date() : S.planDate;
+const curLoc = () => S.view === 'ar' ? S.gps : S.sv;
+
+// =================== caméra (réalité augmentée) ===================
+const video = $('#cam');
+async function startCamera() {
+  if (video.srcObject) return true;
+  try {
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    video.srcObject = st; await video.play().catch(() => {});
+    return true;
+  } catch (e) { toast('Caméra refusée — autorise-la dans Réglages > Safari > Caméra', 4500); return false; }
+}
+function stopCamera() { if (video.srcObject) { video.srcObject.getTracks().forEach(t => t.stop()); video.srcObject = null; } }
+
+async function askMotion() {
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r !== 'granted') { toast('Boussole refusée — la vue caméra ne pourra pas s\'orienter', 4000); return false; }
+    }
+  } catch (e) {}
+  if (!askMotion.bound) { window.addEventListener('deviceorientation', onOri, true); askMotion.bound = true; }
+  return true;
+}
+function rotMatrix(a, b, g) { // W3C : R = Rz(alpha) Rx(beta) Ry(gamma), repère appareil -> repère terrestre
+  const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b), cg = Math.cos(g), sg = Math.sin(g);
+  return [
+    [ca * cg - sa * sb * sg, -cb * sa, ca * sg + cg * sa * sb],
+    [cg * sa + ca * sb * sg, ca * cb, sa * sg - ca * cg * sb],
+    [-cb * sg, sb, cb * cg]];
+}
+const mulV = (R, v) => [R[0][0] * v[0] + R[0][1] * v[1] + R[0][2] * v[2], R[1][0] * v[0] + R[1][1] * v[1] + R[1][2] * v[2], R[2][0] * v[0] + R[2][1] * v[1] + R[2][2] * v[2]];
+function onOri(ev) {
+  if (ev.alpha == null) return;
+  const R = rotMatrix(ev.alpha * rad, ev.beta * rad, ev.gamma * rad);
+  S.ori = R;
+  if (typeof ev.webkitCompassHeading === 'number' && ev.webkitCompassHeading >= 0) {
+    S.compassAcc = ev.webkitCompassAccuracy;
+    const b = Math.abs(ev.beta);
+    let ref = null;
+    if (b > 55 && b < 125) ref = mulV(R, [0, 0, -1]);   // téléphone debout : direction de la caméra
+    else if (b < 30) ref = mulV(R, [0, 1, 0]);          // téléphone à plat : haut de l'appareil
+    if (ref && Math.hypot(ref[0], ref[1]) > 0.5) {
+      const off = norm180(ev.webkitCompassHeading + S.decl - bearingOf(ref));
+      S.compassOff = S.compassOff == null ? off : S.compassOff + norm180(off - S.compassOff) * 0.06;
+    }
+  }
+}
+function screenAngle() {
+  let a = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (window.orientation || 0);
+  return a * rad;
+}
+function rotZ(v, deg) { const c = Math.cos(deg * rad), s = Math.sin(deg * rad); return [v[0] * c + v[1] * s, -v[0] * s + v[1] * c, v[2]]; }
+function arBasis(W, H) {
+  if (!S.ori) return null;
+  const th = screenAngle(), off = (S.compassOff || 0) + S.manual;
+  let f = rotZ(mulV(S.ori, [0, 0, -1]), off);
+  let r = rotZ(mulV(S.ori, [Math.cos(th), -Math.sin(th), 0]), off);
+  // lissage
+  if (S.camBasis) {
+    const k = 0.35, pf = S.camBasis.fwd, pr = S.camBasis.right;
+    f = f.map((v, i) => pf[i] + (v - pf[i]) * k); r = r.map((v, i) => pr[i] + (v - pr[i]) * k);
+  }
+  f = nrm(f); r = nrm(r.map((v, i) => v - dot(r, f) * f[i])); const u = cross(r, f);
+  // focale depuis le champ de vision et le recadrage "cover" de la vidéo
+  const vw = video.videoWidth || W, vh = video.videoHeight || H;
+  const scale = Math.max(W / vw, H / vh);
+  const focal = (Math.max(vw, vh) / 2) / Math.tan(S.fov * rad / 2) * scale;
+  S.camBasis = { fwd: f, right: r, up: u, f: focal, cx: W / 2, cy: H / 2 };
+  return S.camBasis;
+}
+
+// =================== Street View ===================
+function loadGoogle() {
+  return new Promise((res, rej) => {
+    if (window.google && google.maps && google.maps.StreetViewPanorama) return res();
+    if (!S.key) return rej(new Error('nokey'));
+    window.gm_authFailure = () => { toast('Clé Google refusée — vérifie la clé et ses restrictions', 5000); };
+    window.__gmReady = () => res();
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(S.key) + '&v=weekly&language=fr&region=FR&callback=__gmReady';
+    s.async = true; s.onerror = () => rej(new Error('load'));
+    document.head.appendChild(s);
+  });
+}
+async function ensurePano() {
+  if (S.pano) return true;
+  try { await loadGoogle(); } catch (e) {
+    if (e.message === 'nokey') { toast('Ajoute ta clé Google dans les réglages pour Street View', 4000); openModal('#setModal'); }
+    else toast('Impossible de charger Google Maps (réseau ?)', 4000);
+    return false;
+  }
+  S.gmapsReady = true;
+  S.pano = new google.maps.StreetViewPanorama($('#pano'), {
+    pov: { heading: store.get('svHeading', 180), pitch: 8 }, zoom: 1, visible: true,
+    addressControl: false, fullscreenControl: false, zoomControl: false, panControl: false,
+    enableCloseButton: false, showRoadLabels: false, motionTracking: false, motionTrackingControl: true,
+  });
+  const redraw = () => { needDraw = true; };
+  S.pano.addListener('pov_changed', () => { redraw(); store.set('svHeading', S.pano.getPov().heading); });
+  S.pano.addListener('zoom_changed', redraw);
+  S.pano.addListener('position_changed', () => {
+    const p = S.pano.getPosition(); if (!p) return;
+    S.sv = { lat: p.lat(), lng: p.lng() }; store.set('svLoc', S.sv); updateLoc(); redraw();
+  });
+  if (S.sv) gotoSV(S.sv, false);
+  return true;
+}
+function gotoSV(loc, closeMap = true) {
+  const svc = new google.maps.StreetViewService();
+  svc.getPanorama({ location: loc, radius: 250, preference: google.maps.StreetViewPreference.NEAREST, source: google.maps.StreetViewSource.OUTDOOR }, (data, status) => {
+    if (status !== 'OK') { toast('Pas de Street View à moins de 250 m — touche plus près d\'une route'); return; }
+    S.pano.setPano(data.location.pano);
+    if (closeMap) closeModals();
+    document.body.classList.remove('sv-empty');
+  });
+}
+function svBasis(W, H) {
+  if (!S.pano || !S.sv) return null;
+  const pov = S.pano.getPov(), z = S.pano.getZoom() || 1;
+  const fov = Math.min(170, 180 / Math.pow(2, z));
+  const Hd = pov.heading, P = pov.pitch;
+  const fwd = dirVec(Hd, P), right = [Math.cos(Hd * rad), -Math.sin(Hd * rad), 0], up = cross(right, fwd);
+  return { fwd, right, up, f: (W / 2) / Math.tan(fov * rad / 2), cx: W / 2, cy: H / 2 };
+}
+async function openMap() {
+  if (!(await ensurePano())) return;
+  openModal('#mapModal');
+  const center = S.sv || S.gps || { lat: 43.93, lng: 2.15 };
+  if (!S.map) {
+    S.map = new google.maps.Map($('#map'), { center, zoom: 15, mapTypeControl: true, streetViewControl: false, fullscreenControl: false, gestureHandling: 'greedy', clickableIcons: false });
+    new google.maps.StreetViewCoverageLayer().setMap(S.map);
+    S.map.addListener('click', e => {
+      const loc = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+      if (S.mapMarker) S.mapMarker.setPosition(loc); else S.mapMarker = new google.maps.Marker({ position: loc, map: S.map });
+      gotoSV(loc);
+    });
+  } else S.map.setCenter(center);
+}
+function searchPlace() {
+  const q = $('#search').value.trim(); if (!q) return;
+  const m = q.match(/^\s*(-?\d+(?:[.,]\d+)?)\s*[,; ]\s*(-?\d+(?:[.,]\d+)?)\s*$/);
+  if (m) { const loc = { lat: parseFloat(m[1].replace(',', '.')), lng: parseFloat(m[2].replace(',', '.')) }; S.map.setCenter(loc); S.map.setZoom(17); gotoSV(loc); return; }
+  new google.maps.Geocoder().geocode({ address: q, region: 'fr' }, (r, st) => {
+    if (st === 'OK' && r[0]) { S.map.fitBounds(r[0].geometry.viewport); }
+    else if (st === 'REQUEST_DENIED') toast('Active « Geocoding API » dans Google Cloud pour la recherche', 4500);
+    else toast('Lieu introuvable');
+  });
+}
+
+// =================== GPS ===================
+function startGPS() {
+  if (!navigator.geolocation || startGPS.on) return; startGPS.on = true;
+  navigator.geolocation.watchPosition(p => {
+    S.gps = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }; S.gpsLive = true;
+    store.set('gps', { lat: S.gps.lat, lng: S.gps.lng }); updateLoc(); needDraw = true;
+  }, err => { toast('Position refusée — autorise la localisation pour Safari', 4000); }, { enableHighAccuracy: true, maximumAge: 30000 });
+}
+
+// =================== dessin ===================
+const cv = $('#overlay'), ctx = cv.getContext('2d');
+let W = 0, H = 0, DPR = 1, needDraw = true;
+function resize() {
+  DPR = Math.min(3, window.devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; ctx.setTransform(DPR, 0, 0, DPR, 0, 0); needDraw = true;
+}
+function project(b, h, cam) {
+  const v = dirVec(b, h);
+  const x = dot(v, cam.right), y = dot(v, cam.up), z = dot(v, cam.fwd);
+  if (z < 0.03) return { behind: true, x, y, z };
+  return { x: cam.cx + cam.f * x / z, y: cam.cy - cam.f * y / z, z, behind: false };
+}
+function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function pill(x, y, text, opts = {}) {
+  ctx.font = (opts.bold ? '600 ' : '500 ') + (opts.size || 14) + 'px ui-monospace,"SF Mono",Menlo,monospace';
+  const tw = ctx.measureText(text).width, pd = opts.dotc ? 22 : 12, w = tw + pd + 12, h = (opts.size || 14) + 14;
+  let px = opts.anchor === 'right' ? x - w : opts.anchor === 'center' ? x - w / 2 : x;
+  const py = y - h / 2;
+  ctx.fillStyle = opts.bg || 'rgba(38,32,26,.72)'; rr(px, py, w, h, h / 2); ctx.fill();
+  ctx.strokeStyle = opts.border || 'rgba(255,236,210,.18)'; ctx.lineWidth = 1; ctx.stroke();
+  if (opts.dotc) { ctx.fillStyle = opts.dotc; ctx.beginPath(); ctx.arc(px + 13, y, 4, 0, 7); ctx.fill(); }
+  ctx.fillStyle = opts.color || '#fbf3e6'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  ctx.fillText(text, px + pd, y + 1);
+  return { x: px, y: py, w, h };
+}
+function sunGlyph(x, y, r, col, rays = true, glow = true) {
+  if (glow) { const g = ctx.createRadialGradient(x, y, r * .3, x, y, r * 3); g.addColorStop(0, col + 'aa'); g.addColorStop(1, col + '00'); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3, 0, 7); ctx.fill(); }
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r * .55, 0, 7); ctx.fill();
+  if (rays) { ctx.strokeStyle = col; ctx.lineWidth = Math.max(2, r * .14); ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * r * .78, y + Math.sin(a) * r * .78); ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); ctx.stroke(); } }
+}
+function horizonGlyph(x, y, r, col, up) { // demi-soleil sur l'horizon + flèche (lever/coucher)
+  ctx.fillStyle = 'rgba(20,16,12,.55)'; ctx.beginPath(); ctx.arc(x, y, r + 5, 0, 7); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y + 4, r * .55, Math.PI, 0); ctx.fill();
+  ctx.fillRect(x - r * .8, y + 4, r * 1.6, 2);
+  ctx.beginPath(); const s = up ? -1 : 1, ay = y - r * .55;
+  ctx.moveTo(x, ay + (up ? -4 : 4)); ctx.lineTo(x - 3.5, ay + (up ? 0 : 0)); ctx.lineTo(x + 3.5, ay); ctx.closePath(); ctx.fill();
+}
+function dotGlyph(x, y, r, col) {
+  ctx.fillStyle = 'rgba(20,16,12,.55)'; ctx.beginPath(); ctx.arc(x, y, r + 4, 0, 7); ctx.fill();
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, r * .45, 0, 7); ctx.fill();
+}
+const overlaps = (a, list) => list.some(b => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y);
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  const loc = curLoc();
+  const cam = S.view === 'ar' ? arBasis(W, H) : svBasis(W, H);
+  updateChips(loc, cam);
+  if (!loc || !cam) return;
+  const ref = refTime(), dm = dayModel(ref, loc);
+  const diag = Math.hypot(W, H);
+
+  // --- horizon & cardinaux ---
+  if (S.optHorizon) {
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.setLineDash([6, 6]); ctx.beginPath();
+    let pen = false, last = null;
+    for (let b = 0; b <= 360; b += 2) {
+      const p = project(b, 0, cam);
+      if (p.behind || (last && Math.hypot(p.x - last.x, p.y - last.y) > diag)) { pen = false; last = null; continue; }
+      pen ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); pen = true; last = p;
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    ['N', 'E', 'S', 'O', 'NE', 'SE', 'SO', 'NO'].forEach((c, i) => {
+      const b = [0, 90, 180, 270, 45, 135, 225, 315][i], p = project(b, 0, cam);
+      if (p.behind || p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) return;
+      ctx.font = (i < 4 ? '700 14px' : '500 11px') + ' ui-monospace,Menlo,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillStyle = c === 'N' ? 'rgba(255,120,110,.95)' : 'rgba(255,255,255,.8)';
+      ctx.fillText(c, p.x, p.y + 6);
+    });
+  }
+
+  // --- trajectoire ---
+  const pts = dm.samples.map(s => ({ s, p: project(s.bearing, s.alt, cam) }));
+  const morningCut = S.optMorning ? -Infinity : +dm.t.noon;
+  for (const pass of [0, 1]) {
+    for (let i = 1; i < pts.length; i++) {
+      const A = pts[i - 1], B = pts[i];
+      if (A.p.behind || B.p.behind || +B.s.t < morningCut) continue;
+      if (Math.hypot(A.p.x - B.p.x, A.p.y - B.p.y) > diag * .8) continue;
+      const past = B.s.t <= ref, alt = (A.s.alt + B.s.alt) / 2;
+      const c = past ? [150, 150, 150] : lightRGB(alt);
+      const below = alt < -0.8;
+      ctx.lineCap = 'round';
+      if (pass === 0) { ctx.strokeStyle = `rgba(${c},${past ? .12 : .28})`; ctx.lineWidth = 16; }
+      else { ctx.strokeStyle = `rgba(${c},${past ? .55 : (below ? .75 : .95)})`; ctx.lineWidth = past ? 3 : 4; }
+      ctx.beginPath(); ctx.moveTo(A.p.x, A.p.y); ctx.lineTo(B.p.x, B.p.y); ctx.stroke();
+    }
+  }
+  const placed = [];
+  // --- repères horaires ---
+  if (S.optHours) {
+    ctx.font = '500 11px ui-monospace,Menlo,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    pts.forEach(({ s, p }) => {
+      if (p.behind || s.t.getMinutes() >= 3 || s.alt < -6 || +s.t < morningCut) return;
+      if (p.x < 0 || p.x > W || p.y < 0 || p.y > H) return;
+      const past = s.t <= ref;
+      ctx.fillStyle = past ? 'rgba(200,200,200,.6)' : 'rgba(255,255,255,.95)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, 2.6, 0, 7); ctx.fill();
+      ctx.fillStyle = past ? 'rgba(200,200,200,.55)' : 'rgba(255,255,255,.85)';
+      ctx.fillText(s.t.getHours() + 'h', p.x, p.y - 7);
+    });
+  }
+  // --- soleil à l'heure de référence ---
+  const sp = SunEngine.position(ref, loc.lat, loc.lng), p = project(sp.bearing, sp.alt, cam);
+  const camB = bearingOf(cam.fwd);
+  const label = (sp.alt >= 0 ? '+' : '') + Math.round(sp.alt) + '° · ' + card(sp.bearing);
+  const sc = sp.alt > -0.8 ? '#' + lightRGB(sp.alt).map(v => v.toString(16).padStart(2, '0')).join('') : COL.blue;
+  const m = 34;
+  if (!p.behind && p.x > m && p.x < W - m && p.y > m + 150 && p.y < H - m - 140) {
+    sunGlyph(p.x, p.y, 24, sc);
+    ctx.strokeStyle = sc; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, 28, 0, 7); ctx.stroke();
+    placed.push({ x: p.x - 40, y: p.y - 34, w: 80, h: 68 }); placed.push(pill(p.x, p.y + 50, label, { size: 15, bold: true, anchor: 'center', color: sc, border: sc + '88' }));
+  } else {
+    // indicateur hors-champ, collé au bord dans la direction du soleil
+    let dx, dy;
+    if (p.behind) { dx = p.x; dy = -p.y; if (Math.hypot(dx, dy) < 1e-3) dx = 1; }
+    else { dx = p.x - W / 2; dy = p.y - H / 2; }
+    const L = Math.hypot(dx, dy); dx /= L; dy /= L;
+    const top = 190, bot = H - 190, left = 70, right = W - 70, cx = W / 2, cy = (top + bot) / 2;
+    const tx = dx > 0 ? (right - cx) / dx : dx < 0 ? (left - cx) / dx : 1e9;
+    const ty = dy > 0 ? (bot - cy) / dy : dy < 0 ? (top - cy) / dy : 1e9;
+    const t = Math.min(tx, ty), ex = cx + dx * t, ey = cy + dy * t;
+    const turn = norm180(sp.bearing - camB);
+    const arrow = turn < 0 ? '↶' : '↷';
+    const txt = arrow + ' ' + Math.abs(Math.round(turn)) + '°';
+    const an = ex > W / 2 + 10 ? 'right' : ex < W / 2 - 10 ? 'left' : 'center';
+    const ax = an === 'right' ? W - 12 : an === 'left' ? 12 : ex;
+    const b = pill(ax, ey, txt + '   ', { size: 16, bold: true, anchor: an, color: sc, border: sc + 'aa', bg: 'rgba(60,50,30,.82)' }); placed.push(b);
+    sunGlyph(b.x + b.w - 22, ey, 10, sc, true, false);
+    if (sp.alt < -0.8) pill(ax, ey + 34, 'sous l\'horizon ' + Math.round(sp.alt) + '°', { size: 11, anchor: an, color: '#c8c8d8' });
+  }
+
+  // --- marqueurs d'événements ---
+  for (const e of dm.events) {
+    if (e.day !== 0) continue;
+    const meta = EVT[e.k]; if (meta.hidden) continue;
+    if (meta.morning && !S.optMorning) continue;
+    const sp = SunEngine.position(e.t, loc.lat, loc.lng), p = project(sp.bearing, sp.alt, cam);
+    if (p.behind || p.x < -30 || p.x > W + 30 || p.y < -30 || p.y > H + 30) continue;
+    const past = e.t <= ref, col = past ? '#9a9a9a' : meta.col;
+    ctx.globalAlpha = past ? .7 : 1;
+    if (e.k === 'sunRise' || e.k === 'sunSet') horizonGlyph(p.x, p.y, 11, col, e.k === 'sunRise');
+    else if (e.k === 'noon') { ctx.fillStyle = 'rgba(20,16,12,.55)'; ctx.beginPath(); ctx.arc(p.x, p.y, 15, 0, 7); ctx.fill(); sunGlyph(p.x, p.y, 11, col, true, false); }
+    else dotGlyph(p.x, p.y, 10, col);
+    const txt = meta.short + ' ' + hm(e.t);
+    for (const [dx, dy, an] of [[20, 0, 'left'], [-20, 0, 'right'], [0, 28, 'center'], [0, -28, 'center'], [24, 26, 'left'], [-24, 26, 'right']]) {
+      ctx.font = '500 13px ui-monospace,Menlo,monospace';
+      const w = ctx.measureText(txt).width + 34, h = 27;
+      const bx = an === 'right' ? p.x + dx - w : an === 'center' ? p.x + dx - w / 2 : p.x + dx;
+      const box = { x: bx, y: p.y + dy - h / 2, w, h };
+      if (!overlaps(box, placed)) { placed.push(pill(p.x + dx, p.y + dy, txt, { size: 13, anchor: an, dotc: col, color: past ? '#bdbdbd' : '#fbf3e6' })); break; }
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// =================== stickers (chips) ===================
+function updateChips(loc, cam) {
+  if (!loc) {
+    $('#chPhase').innerHTML = '<span class="s">' + (S.view === 'ar' ? 'En attente du GPS…' : 'Choisis un lieu Street View') + '</span>';
+    ['#chEvent', '#chShadow', '#chCam'].forEach(s => $(s).style.display = 'none'); return;
+  }
+  ['#chEvent', '#chShadow', '#chCam'].forEach(s => $(s).style.display = '');
+  const ref = refTime(), dm = dayModel(ref, loc), ph = phaseInfo(ref, loc, dm);
+  $('#chPhase').innerHTML = `<i style="background:${ph.col}"></i>${ph.label.toUpperCase()}` + (ph.nextT ? ` <span class="s">· ${ph.nextName} dans</span> ${dur(ph.nextT - ref)}` : '');
+  if (ph.sunEvt) {
+    const isSet = ph.sunEvt.k === 'sunSet';
+    $('#chEvent').innerHTML = `<i style="background:${COL.set}"></i><span class="k">${isSet ? 'Coucher' : 'Lever'}</span> ${hm(ph.sunEvt.t)} <span class="s">· dans</span> ${dur(ph.sunEvt.t - ref)}`;
+  } else $('#chEvent').innerHTML = '<span class="s">Pas de lever/coucher</span>';
+  const a = ph.pos.alt;
+  $('#chShadow').innerHTML = a > 0.5
+    ? `<span class="k">Ombre</span> ${Math.round((ph.pos.bearing + 180) % 360)}° ${card(ph.pos.bearing + 180)} <span class="s">· ×${(1 / Math.tan(a * rad)).toFixed(1)}</span>`
+    : `<span class="k">Soleil</span> ${Math.round(ph.pos.bearing)}° ${card(ph.pos.bearing)} <span class="s">· ${Math.round(a)}°</span>`;
+  if (cam) {
+    const b = bearingOf(cam.fwd), warn = S.view === 'ar' && (S.compassAcc == null || S.compassAcc < 0 || S.compassAcc > 25) && S.compassOff != null ? ' ⚠︎' : '';
+    $('#chCam').innerHTML = `<span class="k">Visée</span> ${Math.round(b)}° ${card(b)}<span class="s">${warn}</span>`;
+  } else $('#chCam').innerHTML = '<span class="s">' + (S.view === 'ar' ? 'Boussole en attente…' : 'Panorama en chargement…') + '</span>';
+}
+
+// =================== interface ===================
+function setMode(m) {
+  S.mode = m;
+  document.body.classList.toggle('m-plan', m === 'plan'); document.body.classList.toggle('m-live', m === 'live');
+  document.querySelectorAll('#segMode button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  if (m === 'plan') {
+    if (!S.planDate) { const n = new Date(); n.setSeconds(0, 0); n.setMinutes(Math.round(n.getMinutes() / 5) * 5); S.planDate = n; }
+    syncPlanUI();
+  }
+  updateBadge(); needDraw = true;
+}
+async function setView(v) {
+  S.view = v;
+  document.body.classList.toggle('v-ar', v === 'ar'); document.body.classList.toggle('v-sv', v === 'sv');
+  document.querySelectorAll('#segView button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('#btnAction').textContent = v === 'ar' ? 'Recaler' : 'Viser le soleil';
+  $('#btnPlace').style.display = v === 'sv' ? '' : 'none';
+  if (v === 'ar') { startGPS(); await askMotion(); await startCamera(); }
+  else { stopCamera(); document.body.classList.toggle('sv-empty', !S.sv); await ensurePano(); }
+  updateLoc(); needDraw = true;
+}
+function updateBadge() {
+  if (S.mode === 'live') $('#badgeTxt').textContent = 'En direct';
+  else { const d = S.planDate; $('#badgeTxt').textContent = d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) + ' · ' + hm(d); }
+}
+function updateLoc() {
+  const loc = curLoc();
+  let t;
+  if (S.view === 'ar') t = S.gps ? `📍 GPS ${S.gps.lat.toFixed(4)}, ${S.gps.lng.toFixed(4)}` + (S.gps.acc ? ` ±${Math.round(S.gps.acc)} m` : (S.gpsLive ? '' : ' (dernière position)')) : '📍 En attente du GPS…';
+  else t = S.sv ? `📍 ${S.sv.lat.toFixed(4)}, ${S.sv.lng.toFixed(4)}` : '📍 Aucun lieu choisi';
+  $('#locTxt').textContent = t;
+  if (S.mode === 'plan') syncJumps();
+}
+function toDateInput(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function syncPlanUI() {
+  const d = S.planDate;
+  $('#dInput').value = toDateInput(d);
+  $('#tSlider').value = d.getHours() * 60 + d.getMinutes();
+  $('#timeBig').textContent = hm(d);
+  syncTrack(); syncJumps(); updateBadge();
+}
+function syncTrack() { // dégradé de lumière sur le curseur
+  const loc = curLoc() || S.gps || S.sv; if (!loc) return;
+  const d = S.planDate, stops = [];
+  for (let m = 0; m <= 1440; m += 30) {
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, m);
+    const a = SunEngine.position(t, loc.lat, loc.lng).alt;
+    const c = a < -6 ? [40, 40, 52] : lightRGB(a);
+    stops.push(`rgb(${c}) ${(m / 1440 * 100).toFixed(1)}%`);
+  }
+  $('#tSlider').style.setProperty('--trackbg', `linear-gradient(90deg,${stops.join(',')})`);
+}
+function syncJumps() {
+  const loc = curLoc() || S.gps || S.sv, box = $('#jumps'); box.innerHTML = '';
+  if (!loc || !S.planDate) return;
+  const t = SunEngine.times(S.planDate, loc.lat, loc.lng);
+  [['blueRise', 'Aube'], ['sunRise', 'Lever'], ['dayRise', 'Fin golden'], ['noon', 'Zénith'], ['daySet', 'Golden'], ['sunSet', 'Coucher'], ['goldSet', 'Bleue']].forEach(([k, n]) => {
+    if (!t[k]) return;
+    const b = document.createElement('button');
+    b.innerHTML = `<i style="background:${EVT[k].col}"></i>${n} ${hm(t[k])}`;
+    b.onclick = () => { S.planDate = new Date(Math.ceil(t[k] / 60000) * 60000); syncPlanUI(); needDraw = true; };
+    box.appendChild(b);
+  });
+}
+function setPlanFromInputs() {
+  const [y, mo, d] = $('#dInput').value.split('-').map(Number); if (!y) return;
+  const mins = +$('#tSlider').value;
+  S.planDate = new Date(y, mo - 1, d, Math.floor(mins / 60), mins % 60);
+  $('#timeBig').textContent = hm(S.planDate); updateBadge(); needDraw = true;
+}
+function shiftDay(n) { const d = S.planDate; S.planDate = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes()); syncPlanUI(); needDraw = true; }
+
+function mainAction() {
+  const loc = curLoc(); if (!loc) return toast('Position inconnue');
+  if (S.view === 'sv') {
+    if (!S.pano) return;
+    const sp = SunEngine.position(refTime(), loc.lat, loc.lng);
+    S.pano.setPov({ heading: sp.bearing, pitch: Math.max(-30, Math.min(60, sp.alt)) });
+    return;
+  }
+  if (S.mode === 'plan') return toast('Le recalage se fait en mode « Maintenant », en visant le vrai soleil');
+  const cam = S.camBasis; if (!cam) return toast('Boussole pas encore prête');
+  const sp = SunEngine.position(new Date(), loc.lat, loc.lng);
+  if (sp.alt < 1) return toast('Le soleil est sous l\'horizon : recalage impossible');
+  if (!confirm('Vise le centre du soleil (ou l\'endroit où il est caché derrière les nuages), téléphone bien droit, puis valide.')) return;
+  const delta = norm180(sp.bearing - bearingOf(S.camBasis.fwd));
+  S.manual = norm180(S.manual + delta); store.set('manual', S.manual);
+  S.camBasis = null; toast('Recalé de ' + (delta > 0 ? '+' : '') + delta.toFixed(1) + '°'); syncSettings();
+}
+
+// --- modales ---
+function openModal(s) { closeModals(); $(s).classList.add('open'); if (s === '#setModal') syncSettings(); }
+function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
+document.querySelectorAll('.modal').forEach(m => m.addEventListener('click', e => { if (e.target === m || e.target.hasAttribute('data-close')) closeModals(); }));
+function syncSettings() {
+  $('#optHours').checked = S.optHours; $('#optHorizon').checked = S.optHorizon; $('#optMorning').checked = S.optMorning;
+  $('#optFov').value = S.fov; $('#fovVal').textContent = S.fov + '°';
+  $('#offVal').textContent = (S.manual > 0 ? '+' : '') + S.manual.toFixed(1) + '°';
+  $('#optDecl').value = S.decl; $('#optKey').value = S.key;
+}
+[['optHours'], ['optHorizon'], ['optMorning']].forEach(([k]) => $('#' + k).addEventListener('change', e => { S[k] = e.target.checked; store.set(k, S[k]); needDraw = true; }));
+$('#optFov').addEventListener('input', e => { S.fov = +e.target.value; store.set('fov', S.fov); $('#fovVal').textContent = S.fov + '°'; needDraw = true; });
+$('#optDecl').addEventListener('change', e => { S.decl = parseFloat(e.target.value) || 0; store.set('decl', S.decl); S.compassOff = null; });
+$('#offReset').onclick = () => { S.manual = 0; store.set('manual', 0); syncSettings(); };
+$('#keySave').onclick = () => {
+  const k = $('#optKey').value.trim(); const changed = k !== S.key; S.key = k; store.set('key', k);
+  if (changed && window.google && google.maps) { toast('Clé enregistrée — recharge l\'app pour l\'utiliser'); }
+  else { toast('Clé enregistrée'); closeModals(); if (S.view === 'sv') ensurePano(); }
+};
+
+// --- événements ---
+document.querySelectorAll('#segMode button').forEach(b => b.onclick = () => setMode(b.dataset.v));
+document.querySelectorAll('#segView button').forEach(b => b.onclick = () => setView(b.dataset.v));
+$('#handle').onclick = () => document.body.classList.toggle('sheet-min');
+$('#btnChips').onclick = () => document.body.classList.toggle('chips-off');
+$('#btnSettings').onclick = () => openModal('#setModal');
+$('#btnPlace').onclick = openMap;
+$('#btnAction').onclick = mainAction;
+$('#tSlider').addEventListener('input', setPlanFromInputs);
+$('#dInput').addEventListener('change', () => { setPlanFromInputs(); syncTrack(); syncJumps(); });
+$('#dPrev').onclick = () => shiftDay(-1); $('#dNext').onclick = () => shiftDay(1);
+$('#dToday').onclick = () => { const n = new Date(); S.planDate = new Date(n.getFullYear(), n.getMonth(), n.getDate(), S.planDate.getHours(), S.planDate.getMinutes()); syncPlanUI(); needDraw = true; };
+$('#searchGo').onclick = searchPlace;
+$('#search').addEventListener('keydown', e => { if (e.key === 'Enter') searchPlace(); });
+$('#mapMe').onclick = () => { if (S.gps) { S.map.setCenter(S.gps); S.map.setZoom(17); gotoSV(S.gps); } else { startGPS(); toast('Position en cours…'); } };
+$('#goAR').onclick = async () => { $('#start').style.display = 'none'; await askMotion(); startGPS(); await setView('ar'); store.set('started', 'ar'); };
+$('#goSV').onclick = async () => { $('#start').style.display = 'none'; startGPS(); await setView('sv'); store.set('started', 'sv'); if (!S.sv && S.key) openMap(); };
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 300));
+
+// --- boucle ---
+resize(); updateLoc();
+let lastSec = 0;
+function loop(ts) {
+  if (S.view === 'ar' || needDraw || ts - lastSec > 1000) { if (ts - lastSec > 1000) { lastSec = ts; if (S.mode === 'live') updateBadge(); } draw(); needDraw = false; }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+// test sur ordinateur : ?demo=1 simule un téléphone tenu droit
+if (/[?&]demo=1/.test(location.search)) {
+  $('#start').style.display = 'none';
+  S.gps = { lat: 43.93, lng: 2.15, acc: 8 }; updateLoc();
+  let h = +(new URLSearchParams(location.search).get('h') || 220), pitch = +(new URLSearchParams(location.search).get('p') || 15);
+  const setOri = () => { const R = rotMatrix(-h * rad, (90 + pitch) * rad, 0); S.ori = R; S.compassOff = 0; S.compassAcc = 10; S.camBasis = null; };
+  setOri(); S.decl = 0;
+  window.demoSet = (hh, pp) => { h = hh; pitch = pp; setOri(); };
+}
+</script>
+</body>
+</html>
